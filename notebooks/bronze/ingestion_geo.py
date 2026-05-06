@@ -14,9 +14,11 @@ from datetime import datetime
 # CONTEXT
 # =========================
 
+
 class Context:
     def __init__(self):
         self.table = None
+
 
 CTX = Context()
 
@@ -26,10 +28,15 @@ CTX = Context()
 # LOGGER (same style as water_quality)
 # =========================
 
+
 def log(stage, msg, extra=None):
     ts = datetime.now().strftime("%H:%M:%S")
     ctx = f"table={CTX.table}".replace("None", "-")
-    extras = (" | " + ", ".join(f"{k}={v}" for k, v in extra.items())) if extra else ""
+    extras = (
+        " | " +
+        ", ".join(
+            f"{k}={v}" for k,
+            v in extra.items())) if extra else ""
     print(f"[{ts}] [{stage}] {ctx} | {msg}{extras}")
 
 # COMMAND ----------
@@ -38,9 +45,11 @@ def log(stage, msg, extra=None):
 # CONFIG
 # =========================
 
+
 def load_config(path="config/config.yaml"):
     with open(path) as f:
         return yaml.safe_load(f)
+
 
 cfg = load_config()
 geo_cfg = cfg["pipelines"]["geo"]
@@ -71,6 +80,7 @@ log("CONFIG", "loaded", {
 # API
 # =========================
 
+
 def fetch(url, params=None):
     try:
         r = requests.get(url, params=params, timeout=60)
@@ -85,6 +95,7 @@ def fetch(url, params=None):
 # =========================
 # DLT RESOURCES
 # =========================
+
 
 @dlt.resource(
     name="regions",
@@ -168,6 +179,7 @@ def communes():
 # PIPELINE MAIN
 # =========================
 
+
 def run_pipeline():
     os.makedirs(".dlt", exist_ok=True)
 
@@ -198,6 +210,7 @@ def run_pipeline():
 # VALIDATION
 # =========================
 
+
 def validate():
     def count_rows(table_name):
         path = f"{BRONZE_PATH}/{geo_cfg['dataset_name']}/{table_name}"
@@ -217,6 +230,7 @@ def validate():
 # =========================
 # MAIN ENTRY POINT
 # =========================
+
 
 if __name__ == "__main__":
 
