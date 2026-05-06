@@ -19,8 +19,8 @@ from pyspark.sql.types import (
     StructType, StructField,
     StringType, DoubleType, LongType, TimestampType,
 )
+from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
-from pyspark.sql import SparkSession
 from notebooks.silver.silver_transform import (
     load_config,
     get_silver_cfg,
