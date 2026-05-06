@@ -11,10 +11,13 @@
 # MAGIC Sources:
 # MAGIC   - geo.api.gouv.fr/regions      -> 18 regions
 # MAGIC   - geo.api.gouv.fr/departements -> 101 departments
-# MAGIC   - geo.api.gouv.fr/communes     -> ~35,000 communes with GPS + population
+# MAGIC   - geo.api.gouv.fr/communes     -> ~35,000 communes with GPS +
+# population
 
 # COMMAND ----------
 
+import glob
+import pandas as pd
 import os
 import yaml
 import requests
@@ -28,9 +31,11 @@ from datetime import datetime
 
 # COMMAND ----------
 
+
 class Context:
     def __init__(self):
         self.table = None
+
 
 CTX = Context()
 
@@ -41,10 +46,15 @@ CTX = Context()
 
 # COMMAND ----------
 
+
 def log(stage, msg, extra=None):
-    ts     = datetime.now().strftime("%H:%M:%S")
-    ctx    = f"table={CTX.table}".replace("None", "-")
-    extras = (" | " + ", ".join(f"{k}={v}" for k, v in extra.items())) if extra else ""
+    ts = datetime.now().strftime("%H:%M:%S")
+    ctx = f"table={CTX.table}".replace("None", "-")
+    extras = (
+        " | " +
+        ", ".join(
+            f"{k}={v}" for k,
+            v in extra.items())) if extra else ""
     print(f"[{ts}] [{stage}] {ctx} | {msg}{extras}")
 
 # COMMAND ----------
@@ -54,12 +64,13 @@ def log(stage, msg, extra=None):
 
 # COMMAND ----------
 
+
 def load_config(path="config/config.yaml"):
     with open(path) as f:
         return yaml.safe_load(f)
 
 
-cfg     = load_config()
+cfg = load_config()
 geo_cfg = cfg["pipelines"]["geo"]
 
 IS_DATABRICKS = (
@@ -73,12 +84,12 @@ BRONZE_PATH = (
     else cfg["storage"]["bronze"]["local"]
 )
 
-BASE           = geo_cfg["base_url"]
+BASE = geo_cfg["base_url"]
 COMMUNE_FIELDS = geo_cfg["commune_fields"]
-LIMIT          = geo_cfg["limits"]["communes_limit"]
+LIMIT = geo_cfg["limits"]["communes_limit"]
 
 log("CONFIG", "loaded", {
-    "env" : "databricks" if IS_DATABRICKS else "local",
+    "env": "databricks" if IS_DATABRICKS else "local",
     "base": BASE,
 })
 
@@ -88,6 +99,7 @@ log("CONFIG", "loaded", {
 # MAGIC ## API
 
 # COMMAND ----------
+
 
 def fetch(url, params=None):
     """Simple GET request with error handling."""
@@ -106,10 +118,11 @@ def fetch(url, params=None):
 
 # COMMAND ----------
 
+
 @dlt.resource(
-    name              = "regions",
-    write_disposition = "replace",
-    primary_key       = geo_cfg["tables"]["regions"]["primary_key"],
+    name="regions",
+    write_disposition="replace",
+    primary_key=geo_cfg["tables"]["regions"]["primary_key"],
 )
 def regions():
     """Fetches all 18 French regions."""
@@ -119,16 +132,16 @@ def regions():
     for r in data:
         yield {
             "code_region": r["code"],
-            "nom_region" : r["nom"],
-            "source"     : "geo.api.gouv.fr",
+            "nom_region": r["nom"],
+            "source": "geo.api.gouv.fr",
         }
     log("REGIONS", "done", {"rows": len(data)})
 
 
 @dlt.resource(
-    name              = "departements",
-    write_disposition = "replace",
-    primary_key       = geo_cfg["tables"]["departements"]["primary_key"],
+    name="departements",
+    write_disposition="replace",
+    primary_key=geo_cfg["tables"]["departements"]["primary_key"],
 )
 def departements():
     """Fetches all 101 French departments with their region code."""
@@ -138,17 +151,17 @@ def departements():
     for d in data:
         yield {
             "code_departement": d["code"],
-            "nom_departement" : d["nom"],
-            "code_region"     : d["codeRegion"],
-            "source"          : "geo.api.gouv.fr",
+            "nom_departement": d["nom"],
+            "code_region": d["codeRegion"],
+            "source": "geo.api.gouv.fr",
         }
     log("DEPARTEMENTS", "done", {"rows": len(data)})
 
 
 @dlt.resource(
-    name              = "communes",
-    write_disposition = "replace",
-    primary_key       = geo_cfg["tables"]["communes"]["primary_key"],
+    name="communes",
+    write_disposition="replace",
+    primary_key=geo_cfg["tables"]["communes"]["primary_key"],
 )
 def communes():
     """
@@ -157,19 +170,20 @@ def communes():
     """
     CTX.table = "communes"
     log("COMMUNES", "start")
-    data  = fetch(f"{BASE}/communes", {"fields": COMMUNE_FIELDS, "limit": LIMIT})
+    data = fetch(f"{BASE}/communes",
+                 {"fields": COMMUNE_FIELDS, "limit": LIMIT})
     count = 0
     for c in data:
         coords = (c.get("centre") or {}).get("coordinates", [None, None])
         yield {
-            "code_commune"    : c["code"],
-            "nom_commune"     : c["nom"],
+            "code_commune": c["code"],
+            "nom_commune": c["nom"],
             "code_departement": c.get("codeDepartement"),
-            "code_region"     : c.get("codeRegion"),
-            "longitude"       : coords[0] if coords else None,
-            "latitude"        : coords[1] if coords else None,
-            "population"      : c.get("population"),
-            "source"          : "geo.api.gouv.fr",
+            "code_region": c.get("codeRegion"),
+            "longitude": coords[0] if coords else None,
+            "latitude": coords[1] if coords else None,
+            "population": c.get("population"),
+            "source": "geo.api.gouv.fr",
         }
         count += 1
     log("COMMUNES", "done", {"rows": count})
@@ -181,22 +195,23 @@ def communes():
 
 # COMMAND ----------
 
+
 os.makedirs(".dlt", exist_ok=True)
 with open(".dlt/config.toml", "w") as f:
     f.write(f'[destination.filesystem]\nbucket_url = "{BRONZE_PATH}"\n')
 
 pipeline = dlt.pipeline(
-    pipeline_name = geo_cfg["pipeline_name"],
-    destination   = "filesystem",
-    dataset_name  = geo_cfg["dataset_name"],
-    progress      = False,
+    pipeline_name=geo_cfg["pipeline_name"],
+    destination="filesystem",
+    dataset_name=geo_cfg["dataset_name"],
+    progress=False,
 )
 
 log("PIPELINE", "start geo ingestion")
 
 result = pipeline.run(
     [regions(), departements(), communes()],
-    table_format = geo_cfg["file_format"],
+    table_format=geo_cfg["file_format"],
 )
 
 log("PIPELINE", "end", {"result": str(result)})
@@ -208,12 +223,9 @@ log("PIPELINE", "end", {"result": str(result)})
 
 # COMMAND ----------
 
-import pandas as pd
-import glob
-
 
 def count_rows(table_name):
-    path  = f"{BRONZE_PATH}/{geo_cfg['dataset_name']}/{table_name}"
+    path = f"{BRONZE_PATH}/{geo_cfg['dataset_name']}/{table_name}"
     files = glob.glob(f"{path}/**/*.parquet", recursive=True)
     if not files:
         return 0
@@ -221,9 +233,9 @@ def count_rows(table_name):
 
 
 log("VALIDATION", "geo summary", {
-    "regions"     : count_rows("regions"),
+    "regions": count_rows("regions"),
     "departements": count_rows("departements"),
-    "communes"    : count_rows("communes"),
+    "communes": count_rows("communes"),
 })
 
 # COMMAND ----------
