@@ -57,24 +57,6 @@ def get_paths(cfg: dict) -> dict:
     env_key = "databricks" if is_databricks(cfg) else "local"
     return get_gold_cfg(cfg)["paths"][env_key]
 
-
-# %%
-# COMMAND ----------
-CFG = load_config()
-GOLD_CFG = get_gold_cfg(CFG)
-PATHS = get_paths(CFG)
-
-SILVER_PATH = PATHS["silver"]
-GOLD_PATH = PATHS["gold"]
-TABLES = GOLD_CFG["tables"]
-IS_DATABRICKS = is_databricks(CFG)
-DB_CATALOG = GOLD_CFG.get("databricks", {}).get("catalog", "main")
-DB_DATABASE = GOLD_CFG.get("databricks", {}).get("database", "gold")
-
-print(f"Environnement : {'Databricks' if IS_DATABRICKS else 'Local'}")
-print(f"Silver path   : {SILVER_PATH}")
-print(f"Gold path     : {GOLD_PATH}")
-
 # %% [markdown]
 # ## 2 — Session Spark
 
@@ -102,13 +84,6 @@ def get_spark(cfg: dict) -> SparkSession:
                 str(spark_cfg["shuffle_partitions"]))
     ).getOrCreate()
 
-
-# %%
-# COMMAND ----------
-spark = get_spark(CFG)
-spark.sparkContext.setLogLevel("ERROR")
-print(f"Spark {spark.version} OK  |  app={spark.conf.get('spark.app.name')}")
-
 # %% [markdown]
 # ## 3 — Chargement Silver
 
@@ -122,11 +97,6 @@ def load_silver(spark: SparkSession, silver_path: str) -> DataFrame:
     print(
         f"Silver chargé : {df.count():>10,} lignes  | {len(df.columns)} colonnes")
     return df
-
-
-# %%
-# COMMAND ----------
-df_silver = load_silver(spark, SILVER_PATH)
 
 # %% [markdown]
 # ## 4 — Tables Gold
@@ -181,14 +151,6 @@ def build_conformite_dept(df: DataFrame) -> DataFrame:
                 2)) .orderBy(
             "annee",
             "code_departement"))
-
-
-# %%
-# COMMAND ----------
-df_conformite_dept = build_conformite_dept(df_silver)
-
-print("=== gold_conformite_dept ===")
-df_conformite_dept.show(truncate=False)
 
 # %% [markdown]
 # ### 4b — gold_parametres_risks
@@ -245,14 +207,6 @@ def build_parametres_risks(df: DataFrame, top_n: int = 10) -> DataFrame:
             "code_departement",
             "rank"))
 
-
-# %%
-# COMMAND ----------
-df_parametres_risks = build_parametres_risks(df_silver, top_n=10)
-
-print("=== gold_parametres_risks ===")
-df_parametres_risks.show(20, truncate=False)
-
 # %% [markdown]
 # ### 4c — gold_commune_stats
 
@@ -289,14 +243,6 @@ def build_commune_stats(df: DataFrame) -> DataFrame:
                     F.round(F.col("nb_conformes") / F.col("nb_analyses") * 100, 2))
         .orderBy("annee", "code_departement", "nom_commune")
     )
-
-
-# %%
-# COMMAND ----------
-df_commune_stats = build_commune_stats(df_silver)
-
-print("=== gold_commune_stats ===")
-df_commune_stats.show(10, truncate=False)
 
 # %% [markdown]
 # ### 4d — gold_evolution_mensuelle
@@ -350,14 +296,6 @@ def build_evolution_mensuelle(df: DataFrame) -> DataFrame:
             "mois",
             "code_departement"))
 
-
-# %%
-# COMMAND ----------
-df_evolution_mensuelle = build_evolution_mensuelle(df_silver)
-
-print("=== gold_evolution_mensuelle ===")
-df_evolution_mensuelle.show(20, truncate=False)
-
 # %% [markdown]
 # ## 5 — Écriture Gold
 
@@ -405,21 +343,6 @@ def write_gold(
 
     return out_path
 
-
-# %%
-# COMMAND ----------
-paths_written = {}
-
-for key, df_gold in [
-    ("conformite_dept", df_conformite_dept),
-    ("parametres_risks", df_parametres_risks),
-    ("commune_stats", df_commune_stats),
-    ("evolution_mensuelle", df_evolution_mensuelle),
-]:
-    paths_written[key] = write_gold(
-        df_gold, key, TABLES, GOLD_PATH, IS_DATABRICKS, DB_CATALOG, DB_DATABASE
-    )
-
 # %% [markdown]
 # ## 6 — Validation post-écriture
 
@@ -440,19 +363,80 @@ def validate_gold(spark: SparkSession, paths: dict) -> None:
         print(f"   Colonnes : {len(df.columns)}")
         df.show(5, truncate=False)
 
-
-# %%
-# COMMAND ----------
-validate_gold(spark, paths_written)
-
 # %% [markdown]
-# ## 7 — Arrêt Spark (local uniquement)
+# ## 7 — Exécution notebook (Databricks uniquement)
 
 # %%
 # COMMAND ----------
-if not IS_DATABRICKS:
-    spark.stop()
-    print("Spark arrêté")
+
+
+_NOTEBOOK_RUN = (
+    "ipykernel" in __import__("sys").modules
+    or "DATABRICKS_RUNTIME_VERSION" in os.environ
+)
+
+if _NOTEBOOK_RUN:
+    CFG = load_config()
+    GOLD_CFG = get_gold_cfg(CFG)
+    PATHS = get_paths(CFG)
+
+    SILVER_PATH = PATHS["silver"]
+    GOLD_PATH = PATHS["gold"]
+    TABLES = GOLD_CFG["tables"]
+    IS_DATABRICKS = is_databricks(CFG)
+    DB_CATALOG = GOLD_CFG.get("databricks", {}).get("catalog", "main")
+    DB_DATABASE = GOLD_CFG.get("databricks", {}).get("database", "gold")
+
+    print(f"Environnement : {'Databricks' if IS_DATABRICKS else 'Local'}")
+    print(f"Silver path   : {SILVER_PATH}")
+    print(f"Gold path     : {GOLD_PATH}")
+
+    spark = get_spark(CFG)
+    spark.sparkContext.setLogLevel("ERROR")
+    print(
+        f"Spark {
+            spark.version} OK  |  app={
+            spark.conf.get('spark.app.name')}")
+
+    df_silver = load_silver(spark, SILVER_PATH)
+
+    df_conformite_dept = build_conformite_dept(df_silver)
+    print("=== gold_conformite_dept ===")
+    df_conformite_dept.show(truncate=False)
+
+    df_parametres_risks = build_parametres_risks(df_silver, top_n=10)
+    print("=== gold_parametres_risks ===")
+    df_parametres_risks.show(20, truncate=False)
+
+    df_commune_stats = build_commune_stats(df_silver)
+    print("=== gold_commune_stats ===")
+    df_commune_stats.show(10, truncate=False)
+
+    df_evolution_mensuelle = build_evolution_mensuelle(df_silver)
+    print("=== gold_evolution_mensuelle ===")
+    df_evolution_mensuelle.show(20, truncate=False)
+
+    paths_written = {}
+    for key, df_gold in [
+        ("conformite_dept", df_conformite_dept),
+        ("parametres_risks", df_parametres_risks),
+        ("commune_stats", df_commune_stats),
+        ("evolution_mensuelle", df_evolution_mensuelle),
+    ]:
+        paths_written[key] = write_gold(
+            df_gold,
+            key,
+            TABLES,
+            GOLD_PATH,
+            IS_DATABRICKS,
+            DB_CATALOG,
+            DB_DATABASE)
+
+    validate_gold(spark, paths_written)
+
+    if not IS_DATABRICKS:
+        spark.stop()
+        print("Spark arrêté")
 
 # %% [markdown]
 # ---
@@ -460,6 +444,7 @@ if not IS_DATABRICKS:
 
 # %%
 # COMMAND ----------
+
 if __name__ == "__main__":
     import argparse
 
