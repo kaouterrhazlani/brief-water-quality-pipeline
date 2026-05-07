@@ -29,6 +29,8 @@ from pyspark.sql.window import Window
 
 # %%
 # COMMAND ----------
+
+
 def load_config(config_path: str = None) -> dict:
     if config_path is None:
         candidates = ["config/config.yaml", "../../config/config.yaml"]
@@ -59,16 +61,16 @@ def get_paths(cfg: dict) -> dict:
 
 # %%
 # COMMAND ----------
-CFG       = load_config()
-GOLD_CFG  = get_gold_cfg(CFG)
-PATHS     = get_paths(CFG)
+CFG = load_config()
+GOLD_CFG = get_gold_cfg(CFG)
+PATHS = get_paths(CFG)
 
-SILVER_PATH   = PATHS["silver"]
-GOLD_PATH     = PATHS["gold"]
-TABLES        = GOLD_CFG["tables"]
+SILVER_PATH = PATHS["silver"]
+GOLD_PATH = PATHS["gold"]
+TABLES = GOLD_CFG["tables"]
 IS_DATABRICKS = is_databricks(CFG)
-DB_CATALOG    = GOLD_CFG.get("databricks", {}).get("catalog",  "main")
-DB_DATABASE   = GOLD_CFG.get("databricks", {}).get("database", "gold")
+DB_CATALOG = GOLD_CFG.get("databricks", {}).get("catalog", "main")
+DB_DATABASE = GOLD_CFG.get("databricks", {}).get("database", "gold")
 
 print(f"Environnement : {'Databricks' if IS_DATABRICKS else 'Local'}")
 print(f"Silver path   : {SILVER_PATH}")
@@ -79,6 +81,8 @@ print(f"Gold path     : {GOLD_PATH}")
 
 # %%
 # COMMAND ----------
+
+
 def get_spark(cfg: dict) -> SparkSession:
     spark_cfg = get_gold_cfg(cfg)["spark"]
 
@@ -111,10 +115,13 @@ print(f"Spark {spark.version} OK  |  app={spark.conf.get('spark.app.name')}")
 
 # %%
 # COMMAND ----------
+
+
 def load_silver(spark: SparkSession, silver_path: str) -> DataFrame:
     path = f"{silver_path}/water_quality"
-    df   = spark.read.format("delta").load(path)
-    print(f"Silver chargé : {df.count():>10,} lignes  | {len(df.columns)} colonnes")
+    df = spark.read.format("delta").load(path)
+    print(
+        f"Silver chargé : {df.count():>10,} lignes  | {len(df.columns)} colonnes")
     return df
 
 
@@ -130,6 +137,8 @@ df_silver = load_silver(spark, SILVER_PATH)
 
 # %%
 # COMMAND ----------
+
+
 def build_conformite_dept(df: DataFrame) -> DataFrame:
     """
     Taux de conformité agrégé par département et année.
@@ -140,23 +149,39 @@ def build_conformite_dept(df: DataFrame) -> DataFrame:
         taux_conformite_pct, taux_non_conformite_pct
     """
     return (
-        df
-        .groupBy("annee", "code_departement", "nom_departement", "nom_region")
-        .agg(
+        df .groupBy(
+            "annee",
+            "code_departement",
+            "nom_departement",
+            "nom_region") .agg(
             F.count("*").alias("nb_analyses"),
-            F.sum(F.when(F.col("conformite_standard") == "conforme",     1).otherwise(0))
-             .alias("nb_conformes"),
-            F.sum(F.when(F.col("conformite_standard") == "non_conforme", 1).otherwise(0))
-             .alias("nb_non_conformes"),
-            F.sum(F.when(F.col("conformite_standard") == "inconnu",      1).otherwise(0))
-             .alias("nb_inconnus"),
-        )
-        .withColumn("taux_conformite_pct",
-                    F.round(F.col("nb_conformes") / F.col("nb_analyses") * 100, 2))
-        .withColumn("taux_non_conformite_pct",
-                    F.round(F.col("nb_non_conformes") / F.col("nb_analyses") * 100, 2))
-        .orderBy("annee", "code_departement")
-    )
+            F.sum(
+                F.when(
+                    F.col("conformite_standard") == "conforme",
+                    1).otherwise(0)) .alias("nb_conformes"),
+            F.sum(
+                        F.when(
+                            F.col("conformite_standard") == "non_conforme",
+                            1).otherwise(0)) .alias("nb_non_conformes"),
+            F.sum(
+                                F.when(
+                                    F.col("conformite_standard") == "inconnu",
+                                    1).otherwise(0)) .alias("nb_inconnus"),
+        ) .withColumn(
+            "taux_conformite_pct",
+            F.round(
+                F.col("nb_conformes") /
+                F.col("nb_analyses") *
+                100,
+                2)) .withColumn(
+            "taux_non_conformite_pct",
+            F.round(
+                F.col("nb_non_conformes") /
+                F.col("nb_analyses") *
+                100,
+                2)) .orderBy(
+            "annee",
+            "code_departement"))
 
 
 # %%
@@ -171,6 +196,8 @@ df_conformite_dept.show(truncate=False)
 
 # %%
 # COMMAND ----------
+
+
 def build_parametres_risks(df: DataFrame, top_n: int = 10) -> DataFrame:
     """
     Top N paramètres non conformes par département et année.
@@ -184,27 +211,40 @@ def build_parametres_risks(df: DataFrame, top_n: int = 10) -> DataFrame:
                    .orderBy(F.col("nb_non_conformes").desc())
 
     return (
-        df
-        .filter(F.col("conformite_standard") == "non_conforme")
-        .groupBy(
-            "annee", "code_departement", "nom_departement",
-            "code_parametre", "libelle_parametre",
-            "categorie_parametre", "sous_categorie_parametre",
-        )
-        .agg(F.count("*").alias("nb_non_conformes"))
-        .withColumn("rank", F.rank().over(window))
-        .filter(F.col("rank") <= top_n)
-        .join(
-            df.groupBy("annee", "code_departement", "code_parametre")
-              .agg(F.count("*").alias("nb_total")),
-            on=["annee", "code_departement", "code_parametre"],
+        df .filter(
+            F.col("conformite_standard") == "non_conforme") .groupBy(
+            "annee",
+            "code_departement",
+            "nom_departement",
+            "code_parametre",
+            "libelle_parametre",
+            "categorie_parametre",
+            "sous_categorie_parametre",
+        ) .agg(
+            F.count("*").alias("nb_non_conformes")) .withColumn(
+            "rank",
+            F.rank().over(window)) .filter(
+            F.col("rank") <= top_n) .join(
+            df.groupBy(
+                "annee",
+                "code_departement",
+                "code_parametre") .agg(
+                F.count("*").alias("nb_total")),
+            on=[
+                "annee",
+                "code_departement",
+                "code_parametre"],
             how="left",
-        )
-        .withColumn("pct_non_conformes",
-                    F.round(F.col("nb_non_conformes") / F.col("nb_total") * 100, 2))
-        .drop("nb_total")
-        .orderBy("annee", "code_departement", "rank")
-    )
+        ) .withColumn(
+            "pct_non_conformes",
+            F.round(
+                F.col("nb_non_conformes") /
+                F.col("nb_total") *
+                100,
+                2)) .drop("nb_total") .orderBy(
+            "annee",
+            "code_departement",
+            "rank"))
 
 
 # %%
@@ -219,6 +259,8 @@ df_parametres_risks.show(20, truncate=False)
 
 # %%
 # COMMAND ----------
+
+
 def build_commune_stats(df: DataFrame) -> DataFrame:
     """
     Statistiques qualité eau par commune et année.
@@ -238,7 +280,7 @@ def build_commune_stats(df: DataFrame) -> DataFrame:
         )
         .agg(
             F.count("*").alias("nb_analyses"),
-            F.sum(F.when(F.col("conformite_standard") == "conforme",     1).otherwise(0))
+            F.sum(F.when(F.col("conformite_standard") == "conforme", 1).otherwise(0))
              .alias("nb_conformes"),
             F.sum(F.when(F.col("conformite_standard") == "non_conforme", 1).otherwise(0))
              .alias("nb_non_conformes"),
@@ -262,6 +304,8 @@ df_commune_stats.show(10, truncate=False)
 
 # %%
 # COMMAND ----------
+
+
 def build_evolution_mensuelle(df: DataFrame) -> DataFrame:
     """
     Évolution mensuelle du taux de conformité par département.
@@ -277,22 +321,35 @@ def build_evolution_mensuelle(df: DataFrame) -> DataFrame:
     )
 
     return (
-        df
-        .groupBy("annee", "mois", "code_departement", "nom_departement")
-        .agg(
+        df .groupBy(
+            "annee",
+            "mois",
+            "code_departement",
+            "nom_departement") .agg(
             F.count("*").alias("nb_analyses"),
-            F.sum(F.when(F.col("conformite_standard") == "conforme", 1).otherwise(0))
-             .alias("nb_conformes"),
-        )
-        .withColumn("taux_conformite_pct",
-                    F.round(F.col("nb_conformes") / F.col("nb_analyses") * 100, 2))
-        .withColumn("taux_precedent",
-                    F.lag("taux_conformite_pct", 1).over(window_lag))
-        .withColumn("delta_taux_pct",
-                    F.round(F.col("taux_conformite_pct") - F.col("taux_precedent"), 2))
-        .drop("taux_precedent")
-        .orderBy("annee", "mois", "code_departement")
-    )
+            F.sum(
+                F.when(
+                    F.col("conformite_standard") == "conforme",
+                    1).otherwise(0)) .alias("nb_conformes"),
+        ) .withColumn(
+            "taux_conformite_pct",
+            F.round(
+                F.col("nb_conformes") /
+                F.col("nb_analyses") *
+                100,
+                2)) .withColumn(
+            "taux_precedent",
+            F.lag(
+                "taux_conformite_pct",
+                1).over(window_lag)) .withColumn(
+            "delta_taux_pct",
+            F.round(
+                F.col("taux_conformite_pct") -
+                F.col("taux_precedent"),
+                2)) .drop("taux_precedent") .orderBy(
+            "annee",
+            "mois",
+            "code_departement"))
 
 
 # %%
@@ -307,6 +364,8 @@ df_evolution_mensuelle.show(20, truncate=False)
 
 # %%
 # COMMAND ----------
+
+
 def write_gold(
     df: DataFrame,
     table_key: str,
@@ -321,10 +380,10 @@ def write_gold(
     - Local      : chemin fichier  → data/gold/<output_table>
     - Databricks : Unity Catalog   → catalog.database.output_table
     """
-    table_cfg  = tables_cfg[table_key]
-    out_table  = table_cfg["output_table"]
+    table_cfg = tables_cfg[table_key]
+    out_table = table_cfg["output_table"]
     partitions = table_cfg["partition_by"]
-    out_path   = f"{gold_path}/{out_table}"
+    out_path = f"{gold_path}/{out_table}"
 
     if not is_databricks_env:
         os.makedirs(gold_path, exist_ok=True)
@@ -353,9 +412,9 @@ def write_gold(
 paths_written = {}
 
 for key, df_gold in [
-    ("conformite_dept",     df_conformite_dept),
-    ("parametres_risks",    df_parametres_risks),
-    ("commune_stats",       df_commune_stats),
+    ("conformite_dept", df_conformite_dept),
+    ("parametres_risks", df_parametres_risks),
+    ("commune_stats", df_commune_stats),
     ("evolution_mensuelle", df_evolution_mensuelle),
 ]:
     paths_written[key] = write_gold(
@@ -367,6 +426,8 @@ for key, df_gold in [
 
 # %%
 # COMMAND ----------
+
+
 def validate_gold(spark: SparkSession, paths: dict) -> None:
     """Relit chaque table Gold et affiche les métriques clés."""
     print("\n" + "=" * 60)
@@ -403,21 +464,22 @@ if not IS_DATABRICKS:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Gold Transform — Water Quality Pipeline")
+    parser = argparse.ArgumentParser(
+        description="Gold Transform — Water Quality Pipeline")
     parser.add_argument("--config", default=None)
     args, _ = parser.parse_known_args()
 
     # ── 1. Config
-    cfg        = load_config(args.config)
-    gold_cfg   = get_gold_cfg(cfg)
-    paths      = get_paths(cfg)
-    is_db      = is_databricks(cfg)
+    cfg = load_config(args.config)
+    gold_cfg = get_gold_cfg(cfg)
+    paths = get_paths(cfg)
+    is_db = is_databricks(cfg)
 
-    s_path     = paths["silver"]
-    g_path     = paths["gold"]
-    tables     = gold_cfg["tables"]
-    catalog    = gold_cfg.get("databricks", {}).get("catalog",  "main")
-    database   = gold_cfg.get("databricks", {}).get("database", "gold")
+    s_path = paths["silver"]
+    g_path = paths["gold"]
+    tables = gold_cfg["tables"]
+    catalog = gold_cfg.get("databricks", {}).get("catalog", "main")
+    database = gold_cfg.get("databricks", {}).get("database", "gold")
 
     print(f"[main] Environnement : {'Databricks' if is_db else 'Local'}")
     print(f"[main] Silver -> {s_path}")
@@ -432,16 +494,17 @@ if __name__ == "__main__":
 
     # ── 4. Build tables Gold
     gold_tables = {
-        "conformite_dept":     build_conformite_dept(silver),
-        "parametres_risks":    build_parametres_risks(silver, top_n=10),
-        "commune_stats":       build_commune_stats(silver),
+        "conformite_dept": build_conformite_dept(silver),
+        "parametres_risks": build_parametres_risks(silver, top_n=10),
+        "commune_stats": build_commune_stats(silver),
         "evolution_mensuelle": build_evolution_mensuelle(silver),
     }
 
     # ── 5. Écriture
     written = {}
     for key, df in gold_tables.items():
-        written[key] = write_gold(df, key, tables, g_path, is_db, catalog, database)
+        written[key] = write_gold(
+            df, key, tables, g_path, is_db, catalog, database)
 
     # ── 6. Validation
     validate_gold(session, written)
