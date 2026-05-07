@@ -1,3 +1,9 @@
+## [1.2.1](https://github.com/kaouterrhazlani/brief-water-quality-pipeline/compare/v1.2.0...v1.2.1) (2026-05-07)
+
+### Bug Fixes
+
+* skip Spark tests in CI due to Maven network restrictions ([f4e560e](https://github.com/kaouterrhazlani/brief-water-quality-pipeline/commit/f4e560ec76edecd4c01da886f074043aa9c4fc94))
+
 ## [1.2.0](https://github.com/kaouterrhazlani/brief-water-quality-pipeline/compare/v1.1.0...v1.2.0) (2026-05-07)
 
 ### Features
