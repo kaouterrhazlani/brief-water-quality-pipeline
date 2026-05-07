@@ -14,8 +14,7 @@
 
 # %%
 # COMMAND ----------
-import os
-import glob
+
 import yaml
 
 import pandas as pd
@@ -72,12 +71,11 @@ def run_validation(context, df: pd.DataFrame, suite_name: str) -> dict:
 
     total = result["statistics"]["evaluated_expectations"]
     passed = result["statistics"]["successful_expectations"]
-    failed = result["statistics"]["unsuccessful_expectations"]
     status = "PASSED" if result["success"] else "FAILED"
 
     print(f"\n[{status}] {suite_name}")
     print(
-        f"  Expectations : {total} total | {passed} passed | {failed} failed")
+        f"  Expectations : {total} total | {passed} passed | {total - passed} failed")
 
     if not result["success"]:
         for r in result["results"]:
@@ -333,7 +331,6 @@ def print_report(results: dict) -> None:
     for name, result in results.items():
         total = result["statistics"]["evaluated_expectations"]
         passed = result["statistics"]["successful_expectations"]
-        failed = result["statistics"]["unsuccessful_expectations"]
         status = "PASSED" if result["success"] else "FAILED"
         if not result["success"]:
             all_passed = False
