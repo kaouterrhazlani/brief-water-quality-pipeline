@@ -17,7 +17,6 @@
 # %%
 # COMMAND ----------
 import os
-import sys
 import yaml
 
 from pyspark.sql import SparkSession, DataFrame
